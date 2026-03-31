@@ -1,0 +1,5 @@
+{
+  "name": "YouTube Channel Scraper",
+  "description": "Lấy thông tin video từ kênh YouTube và xuất ra file CSV, JSON.",
+  "requestFramePermissions": []
+}
