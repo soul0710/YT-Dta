@@ -292,10 +292,10 @@ export default function App() {
 
   // Scrape State
   const [apiKey, setApiKey] = useState('');
-  const [channelLink, setChannelLink] = useState('');
+  const [channelLinks, setChannelLinks] = useState('');
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState('');
-  const [resultData, setResultData] = useState<DatabaseExport | null>(null);
+  const [resultsData, setResultsData] = useState<DatabaseExport[]>([]);
   const [error, setError] = useState('');
 
   // Compare State
@@ -306,20 +306,30 @@ export default function App() {
       setError('Vui lòng nhập YouTube Data API v3 Key');
       return;
     }
-    if (!channelLink) {
-      setError('Vui lòng nhập link kênh YouTube');
+    const links = channelLinks.split(/[\n,]+/).map(l => l.trim()).filter(l => l);
+    if (links.length === 0) {
+      setError('Vui lòng nhập ít nhất một link kênh YouTube');
       return;
     }
 
     setLoading(true);
     setError('');
-    setResultData(null);
+    setResultsData([]);
 
     try {
-      const data = await fetchChannelData(apiKey, channelLink, setProgress);
-      setResultData(data);
-    } catch (err: any) {
-      setError(err.message || 'Đã xảy ra lỗi');
+      const results: DatabaseExport[] = [];
+      for (let i = 0; i < links.length; i++) {
+        const link = links[i];
+        setProgress(`Đang xử lý kênh ${i + 1}/${links.length}...`);
+        try {
+          const data = await fetchChannelData(apiKey, link, (msg) => setProgress(`[Kênh ${i + 1}/${links.length}] ${msg}`));
+          results.push(data);
+          setResultsData([...results]);
+        } catch (err: any) {
+          console.error(`Lỗi khi lấy dữ liệu kênh ${link}:`, err);
+          alert(`Lỗi khi lấy dữ liệu kênh ${link}: ${err.message}`);
+        }
+      }
     } finally {
       setLoading(false);
       setProgress('');
@@ -433,14 +443,14 @@ export default function App() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Link kênh YouTube
+                      Link kênh YouTube (mỗi link 1 dòng hoặc cách nhau bằng dấu phẩy)
                     </label>
-                    <input
-                      type="text"
-                      value={channelLink}
-                      onChange={(e) => setChannelLink(e.target.value)}
-                      placeholder="VD: https://www.youtube.com/@mkbhd hoặc https://www.youtube.com/channel/UC..."
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-colors"
+                    <textarea
+                      value={channelLinks}
+                      onChange={(e) => setChannelLinks(e.target.value)}
+                      placeholder="VD: https://www.youtube.com/@mkbhd&#10;https://www.youtube.com/channel/UC..."
+                      rows={4}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-colors resize-y"
                     />
                   </div>
 
@@ -477,83 +487,87 @@ export default function App() {
               </div>
             </div>
 
-            {resultData && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="p-6 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gray-50/50">
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">{resultData.channelName}</h2>
-                    <p className="text-sm text-gray-500 mt-1">
-                      Tổng view: <strong className="text-gray-900">{resultData.totalViews.toLocaleString('vi-VN')}</strong> • 
-                      Tổng video: <strong className="text-gray-900">{resultData.videos.length}</strong>
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-3">
-                    <button
-                      onClick={() => {
-                        const csv = generateCSV(resultData);
-                        const safeName = resultData.channelName.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'channel';
-                        downloadFile(csv, `${getFormattedDatePrefix()}_${safeName}.csv`, 'text/csv;charset=utf-8;');
-                      }}
-                      className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white hover:bg-green-700 rounded-lg text-sm font-medium transition-colors shadow-sm"
-                    >
-                      <FileSpreadsheet className="w-4 h-4" />
-                      Lưu file CSV
-                    </button>
-                    <button
-                      onClick={() => {
-                        const json = JSON.stringify(resultData, null, 2);
-                        const safeName = resultData.channelName.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'channel';
-                        downloadFile(json, `${getFormattedDatePrefix()}_${safeName}.json`, 'application/json');
-                      }}
-                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors shadow-sm"
-                    >
-                      <Database className="w-4 h-4" />
-                      Lưu file Database (JSON)
-                    </button>
-                  </div>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm text-left text-gray-600">
-                    <thead className="text-xs text-gray-700 uppercase bg-gray-100/50 border-b border-gray-200">
-                      <tr>
-                        <th className="px-6 py-4 whitespace-nowrap font-semibold">Ngày pub</th>
-                        <th className="px-6 py-4 whitespace-nowrap font-semibold">Giờ pub</th>
-                        <th className="px-6 py-4 font-semibold">Tiêu đề</th>
-                        <th className="px-6 py-4 whitespace-nowrap font-semibold text-right">Lượt xem</th>
-                        <th className="px-6 py-4 whitespace-nowrap font-semibold">Độ dài</th>
-                        <th className="px-6 py-4 whitespace-nowrap font-semibold">Video live</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {resultData.videos.slice(0, 10).map((video, idx) => {
-                        const pub = formatGMT7(video.publishedAt);
-                        const liveEnd = (video.isLive && video.liveEndTime !== "Đang live" && video.liveEndTime !== "n/e")
-                          ? formatGMT7(video.liveEndTime).full
-                          : video.liveEndTime;
-
-                        return (
-                          <tr key={idx} className="bg-white hover:bg-gray-50/80 transition-colors">
-                            <td className="px-6 py-4 whitespace-nowrap">{pub.date}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-gray-500">{pub.time}</td>
-                            <td className="px-6 py-4 font-medium text-gray-900 max-w-xs truncate" title={video.title}>
-                              <a href={video.link} target="_blank" rel="noreferrer" className="hover:text-blue-600 hover:underline">
-                                {video.title}
-                              </a>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right font-medium">{video.viewCount.toLocaleString('vi-VN')}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-gray-500">{video.duration}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-gray-500">{liveEnd}</td>
+            {resultsData.length > 0 && (
+              <div className="space-y-6">
+                {resultsData.map((resultData, index) => (
+                  <div key={index} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="p-6 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gray-50/50">
+                      <div>
+                        <h2 className="text-xl font-bold text-gray-900">{resultData.channelName}</h2>
+                        <p className="text-sm text-gray-500 mt-1">
+                          Tổng view: <strong className="text-gray-900">{resultData.totalViews.toLocaleString('vi-VN')}</strong> • 
+                          Tổng video: <strong className="text-gray-900">{resultData.videos.length}</strong>
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-3">
+                        <button
+                          onClick={() => {
+                            const csv = generateCSV(resultData);
+                            const safeName = resultData.channelName.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'channel';
+                            downloadFile(csv, `${getFormattedDatePrefix()}_${safeName}.csv`, 'text/csv;charset=utf-8;');
+                          }}
+                          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white hover:bg-green-700 rounded-lg text-sm font-medium transition-colors shadow-sm"
+                        >
+                          <FileSpreadsheet className="w-4 h-4" />
+                          Lưu file CSV
+                        </button>
+                        <button
+                          onClick={() => {
+                            const json = JSON.stringify(resultData, null, 2);
+                            const safeName = resultData.channelName.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'channel';
+                            downloadFile(json, `${getFormattedDatePrefix()}_${safeName}.json`, 'application/json');
+                          }}
+                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors shadow-sm"
+                        >
+                          <Database className="w-4 h-4" />
+                          Lưu file Database (JSON)
+                        </button>
+                      </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm text-left text-gray-600">
+                        <thead className="text-xs text-gray-700 uppercase bg-gray-100/50 border-b border-gray-200">
+                          <tr>
+                            <th className="px-6 py-4 whitespace-nowrap font-semibold">Ngày pub</th>
+                            <th className="px-6 py-4 whitespace-nowrap font-semibold">Giờ pub</th>
+                            <th className="px-6 py-4 font-semibold">Tiêu đề</th>
+                            <th className="px-6 py-4 whitespace-nowrap font-semibold text-right">Lượt xem</th>
+                            <th className="px-6 py-4 whitespace-nowrap font-semibold">Độ dài</th>
+                            <th className="px-6 py-4 whitespace-nowrap font-semibold">Video live</th>
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-                {resultData.videos.length > 10 && (
-                  <div className="p-4 text-center text-sm text-gray-500 bg-gray-50 border-t border-gray-200">
-                    Đang hiển thị 10/{resultData.videos.length} video. Vui lòng lưu file để xem toàn bộ.
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {resultData.videos.slice(0, 10).map((video, idx) => {
+                            const pub = formatGMT7(video.publishedAt);
+                            const liveEnd = (video.isLive && video.liveEndTime !== "Đang live" && video.liveEndTime !== "n/e")
+                              ? formatGMT7(video.liveEndTime).full
+                              : video.liveEndTime;
+
+                            return (
+                              <tr key={idx} className="bg-white hover:bg-gray-50/80 transition-colors">
+                                <td className="px-6 py-4 whitespace-nowrap">{pub.date}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-gray-500">{pub.time}</td>
+                                <td className="px-6 py-4 font-medium text-gray-900 max-w-xs truncate" title={video.title}>
+                                  <a href={video.link} target="_blank" rel="noreferrer" className="hover:text-blue-600 hover:underline">
+                                    {video.title}
+                                  </a>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-right font-medium">{video.viewCount.toLocaleString('vi-VN')}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-gray-500">{video.duration}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-gray-500">{liveEnd}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    {resultData.videos.length > 10 && (
+                      <div className="p-4 text-center text-sm text-gray-500 bg-gray-50 border-t border-gray-200">
+                        Đang hiển thị 10/{resultData.videos.length} video. Vui lòng lưu file để xem toàn bộ.
+                      </div>
+                    )}
                   </div>
-                )}
+                ))}
               </div>
             )}
           </div>
