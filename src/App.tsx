@@ -306,7 +306,7 @@ export default function App() {
       setError('Vui lòng nhập YouTube Data API v3 Key');
       return;
     }
-    const links = channelLinks.split(/[\n,]+/).map(l => l.trim()).filter(l => l);
+    const links = channelLinks.split(/\r?\n/).map(l => l.trim()).filter(l => l);
     if (links.length === 0) {
       setError('Vui lòng nhập ít nhất một link kênh YouTube');
       return;
@@ -443,7 +443,7 @@ export default function App() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Link kênh YouTube (mỗi link 1 dòng hoặc cách nhau bằng dấu phẩy)
+                      Link kênh YouTube (mỗi link 1 dòng)
                     </label>
                     <textarea
                       value={channelLinks}
@@ -489,6 +489,41 @@ export default function App() {
 
             {resultsData.length > 0 && (
               <div className="space-y-6">
+                {resultsData.length > 1 && (
+                  <div className="flex flex-wrap gap-3 justify-end bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                    <span className="mr-auto self-center font-medium text-gray-700">Đã tải {resultsData.length} kênh</span>
+                    <button
+                      onClick={() => {
+                        resultsData.forEach((data, index) => {
+                          setTimeout(() => {
+                            const csv = generateCSV(data);
+                            const safeName = data.channelName.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'channel';
+                            downloadFile(csv, `${getFormattedDatePrefix()}_${safeName}.csv`, 'text/csv;charset=utf-8;');
+                          }, index * 300);
+                        });
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white hover:bg-green-700 rounded-lg text-sm font-medium transition-colors shadow-sm"
+                    >
+                      <FileSpreadsheet className="w-4 h-4" />
+                      Tải tất cả CSV
+                    </button>
+                    <button
+                      onClick={() => {
+                        resultsData.forEach((data, index) => {
+                          setTimeout(() => {
+                            const json = JSON.stringify(data, null, 2);
+                            const safeName = data.channelName.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'channel';
+                            downloadFile(json, `${getFormattedDatePrefix()}_${safeName}.json`, 'application/json');
+                          }, index * 300);
+                        });
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors shadow-sm"
+                    >
+                      <Database className="w-4 h-4" />
+                      Tải tất cả JSON
+                    </button>
+                  </div>
+                )}
                 {resultsData.map((resultData, index) => (
                   <div key={index} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
                     <div className="p-6 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gray-50/50">
